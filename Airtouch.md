@@ -1,9 +1,9 @@
 # Airtouch
 
-**Target IP:** `10.129.244.98` 
-**Hostname:** `airtouch.htb` 
-**Platform:** `Linux` 
-**Difficulty:** `Medium`
+**Target IP:** `10.129.244.98`     
+**Hostname:** `airtouch.htb`     
+**Platform:** `Linux`     
+**Difficulty:** `Medium`    
 
 ---
 
