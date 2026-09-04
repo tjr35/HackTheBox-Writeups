@@ -24,7 +24,7 @@ So we seem to have the classic ssh + http, except with the added https seemingly
 
 Viewing the app on both ports, we get the same web page. In fact the http redirects to https. The web server seems to be a management platform for AI powered agents and containerized applications. 
 
-![[Pasted image 20260326000907.png]]
+![](Screenshots/Pasted%20image%2020260326000907.png)
 
 We also find an email at the bottom of the page - `admin@kobold.htb`. Other than this, there are no clickable links.
 
@@ -40,7 +40,7 @@ feroxbuster --url https://kobold.htb/ --insecure
 ```
 
 This returns nothing at all on either scans:
-![[Pasted image 20260326001153.png]]
+![](Screenshots/Pasted%20image%2020260326001153.png)
 
 Subdomain / vhost enumeration:
 
@@ -54,18 +54,18 @@ ffuf -c -u https://10.129.245.50 -H "Host: FUZZ.kobold.htb" -w /usr/share/seclis
 ```
 
 This finds mcp and bin as subdomains:
-![[Pasted image 20260326002432.png]]
+![](Screenshots/Pasted%20image%2020260326002432.png)
 
 ### bin.kobold.htb
 
 Viewing this page, it appears to be a "private" version of pastebin called PrivateBin. This is running version 2.0.2. There is a small section explaining that the server has no knowledge of the stored info as it is stored encrypted in the browser (perhaps local storage.)
-![[Pasted image 20260326001707.png]]
+![](Screenshots/Pasted%20image%2020260326001707.png)
 
 Performing a quick google search actually finds that version 2.0.2 was provided as a fix to an HTML injection, and doesn't appear to have any CVEs
 ### mcp.kobold.htb
 
 Viewing this subdomain, it appears to be running a piece of software called MCPJam, which seems to be a form of management software for AI agents. Navigating to the settings we can see this is running version 1.4.2:
-![[Pasted image 20260326001942.png]]
+![](Screenshots/Pasted%20image%2020260326001942.png)
 
 Performing a google search for this returns that it is vulnerable to RCE via CVE-2026-23744, a new and relevant CVE which makes me think this is the way forward.
 
@@ -91,7 +91,7 @@ curl https://mcp.kobold.htb/api/mcp/connect --header "Content-Type: application/
 ```
 
 I initially got an error as the curl complains about the cert, i add -k to allow insecure, the request seems to work but not spawn the cmd.exe for some reason (I also do not get a callback):
-![[Pasted image 20260326002637.png]]
+![](Screenshots/Pasted%20image%2020260326002637.png)
 
 I took a short pause on this box for a while and upon reflection realised this was a linux box and so the command needs to be modified to reflect this:
 
@@ -114,7 +114,7 @@ curl https://mcp.kobold.htb/api/mcp/connect --header "Content-Type: application/
 ```
 
 Using this I got a shell as ben and the user flag:
-![[Pasted image 20260329183100.png]]
+![](Screenshots/Pasted%20image%2020260329183100.png)
 
 ---
 
@@ -128,7 +128,7 @@ In the root directory, there appears to be a folder named `privatebin-data`, thi
 
 In here we find a folder `data` which is writable by the group `operator` which we are part of:
 
-![[Pasted image 20260329184004.png]]
+![](Screenshots/Pasted%20image%2020260329184004.png)
 
 Inside this `/data` folder appears to be some php files, suggesting these might be the files relating to the server. On `bin.kobold.htb` we had an instance of PrivateBin, so my suspected exploit path is to use the writable folder and our web access to exploit something.
 ### CVE-2025-64714
@@ -139,7 +139,7 @@ Going back to privatebin and the version number (`2.0.2`) I was able to find it 
 **Reference / PoC:** https://github.com/PrivateBin/PrivateBin/security/advisories/GHSA-g2j9-g8r5-rg82
 
 Reading this PoC, it seems we need to perform some directory traversal inside the `template` cookie. It appears that if we use **salt** as a test, it will error / not display if vulnerable. We confirm this as follows:
-![[Pasted image 20260329185529.png]]
+![](Screenshots/Pasted%20image%2020260329185529.png)
 
 Now  we need to write our malicious shell to the server:
 ```bash
@@ -267,21 +267,21 @@ function printit ($string) {
 ```
 
 Now we include this as our template variable:
-![[Pasted image 20260329185809.png]]
+![](Screenshots/Pasted%20image%2020260329185809.png)
 
 Interesting this seems to open a shell and then the shell dies.
 
 Instead of using penelope, I spin up a netcat listener to get a better idea of whats going on:
-![[Pasted image 20260329190012.png]]
+![](Screenshots/Pasted%20image%2020260329190012.png)
 
 This seems to show that /bin/bash is not found, but /bin/sh is. By modifying our `test.php` to use `/bin/sh` we can rerun this exploit and get a shell as `nobody`:
-![[Pasted image 20260329190234.png]]
+![](Screenshots/Pasted%20image%2020260329190234.png)
 
 This appears to be in a docker container, and we have almost no permissions, so this might be a dead end. We confirm this is a docker container by the entry in `/etc/hosts`:
-![[Pasted image 20260329190404.png]]
+![](Screenshots/Pasted%20image%2020260329190404.png)
 
 In the root directory of the container there is a folder `srv` which I suspect holds some of the server files and may contain config files. In `/srv/cfg` I find `conf.php` which is a very long config file:
-![[Pasted image 20260329191001.png]]
+![](Screenshots/Pasted%20image%2020260329191001.png)
 
 As the config file is so long, I paste it into an AI agent to parse and summarise for me. In a real engagement this would be inappropriate as it could leak sensitive info, but in a CTF context this is fine. 
 
@@ -293,12 +293,12 @@ It identifies some MySQL creds, however notes that local storage is used NOT MyS
 From my perspective it is weird that there is a MySQL password present when it is disabled, so my thought is this might be a case of credential reuse. I attempt the password in many many places, such as for the `alice` user and many other default usernames via password spraying. There is no option to login to any of the web pages.
 
 With a small hint, I return to nmap scanning, this time doing a full scan:
-![[Pasted image 20260329192317.png]]
+![](Screenshots/Pasted%20image%2020260329192317.png)
 
 This identifies an additional port - 3552, which appears to be running some form of Golang service.
 
 Visiting this page we get a login screen for an application called **Arcane**, with a version number of **1.13.0**:
-![[Pasted image 20260329192523.png]]
+![](Screenshots/Pasted%20image%2020260329192523.png)
 
 A quick search returns the default username is `arcane`, combining this with the password we found earlier logs us in.
 
@@ -317,7 +317,7 @@ In the advisory there is an interesting line stating:
 According to the advisory, the `pre-update` or `post-update` label is based directly to `/bin/sh -c` without any sanitization or validation. Apparently we can create a project through the api with these labels to execute commands.
 
 We need to find a valid image we can use:
-![[Pasted image 20260329194212.png]]
+![](Screenshots/Pasted%20image%2020260329194212.png)
 
 I edit the compose.yaml by adding a pre-update label:
 
@@ -344,18 +344,18 @@ volumes:
 This does not seem to work as the project attempts to call out to an external docker.io site and fails. 
 
 At this stage I hunt around a bit more on the site and discover we can make containers with a command to run when executed:
-![[Pasted image 20260329194538.png]]
+![](Screenshots/Pasted%20image%2020260329194538.png)
 
 If we add our reverse shell payload in here and create it. I also add the working directory as /root and the user as root:
-![[Pasted image 20260329194705.png]]
+![](Screenshots/Pasted%20image%2020260329194705.png)
 
 I attempted this but got no shell, I suspect the docker containers created aren't externally network connected so I can't callback to my host.
 
 By playing around I discovered if I set the user to root, I can use the "Volumes" tab to mount the host filesystem into /host in the container:
-![[Pasted image 20260329195653.png]]
+![](Screenshots/Pasted%20image%2020260329195653.png)
 
 And then interact with this via the web browser shell to get the root flag:
-![[Pasted image 20260329195738.png]]
+![](Screenshots/Pasted%20image%2020260329195738.png)
 
 ---
 
