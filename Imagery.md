@@ -1,9 +1,9 @@
 # Imagery 
 
-**Target IP:** `10.129.242.164`
-**Hostname:** `imagery.htb`
-**Platform:** `Linux`
-**Difficulty:** `Medium`
+**Target IP:** `10.129.242.164`    
+**Hostname:** `imagery.htb`    
+**Platform:** `Linux`    
+**Difficulty:** `Medium`    
 
 ---
 
