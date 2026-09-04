@@ -1,9 +1,9 @@
 # Overwatch
 
-**Target IP:** `10.129.244.81`
-**Hostname:** `overwatch.htb`
-**Platform:** `Windows`
-**Difficulty:** `Medium`
+**Target IP:** `10.129.244.81`   
+**Hostname:** `overwatch.htb`    
+**Platform:** `Windows`    
+**Difficulty:** `Medium`    
 
 ---
 
