@@ -1,9 +1,9 @@
 # Conversor
 
-**Target IP:** `10.129.238.31`
-**Hostname:** `conversor.htb`
-**Platform:** `Linux`
-**Difficulty:** `Easy`
+**Target IP:** `10.129.238.31`    
+**Hostname:** `conversor.htb`    
+**Platform:** `Linux`    
+**Difficulty:** `Easy`    
 
 ---
 
