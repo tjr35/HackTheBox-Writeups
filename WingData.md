@@ -1,10 +1,10 @@
 # WingData
 
-**Target IP:** `10.129.2.141`
-**Hostname:** `wingdata.htb`
-**Platform:** `Linux`
-**Difficulty:** `Medium`
-
+**Target IP:** `10.129.2.141`   
+**Hostname:** `wingdata.htb`   
+**Platform:** `Linux`   
+**Difficulty:** `Medium`   
+  
 ---
 
 ## 1. Enumeration
