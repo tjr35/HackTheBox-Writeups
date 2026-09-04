@@ -1,9 +1,9 @@
 # Interpreter
 
-**Target IP:** `10.129.6.65`
-**Hostname:** `interpreter.htb`
-**Platform:** `Linux`
-**Difficulty:** `Medium`
+**Target IP:** `10.129.6.65`    
+**Hostname:** `interpreter.htb`    
+**Platform:** `Linux`    
+**Difficulty:** `Medium`    
 
 ---
 
